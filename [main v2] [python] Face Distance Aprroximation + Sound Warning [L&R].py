@@ -22,8 +22,6 @@ known_width = 15.5
 def get_width_pixel(image):
 
 	face_width = [] # making face width to zero
-	middle_x = []
-	middle_y = []
 
 	# converting color image to gray scale image
 	gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -32,22 +30,32 @@ def get_width_pixel(image):
 	faces = face_detector.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5)
 
 	for x,y,w,h in faces:
-		# looping through the faces detect in the image
-		# getting coordinates x, y , width and height
-
-		# draw the rectangle on the face
-		cv2.rectangle(image, (x, y), (x+w, y+h), GREEN, 2)
-
-		# getting face box middle coodinate
-		middle_x.append(x+w/2)
-		middle_y.append(y+h/2)
-
 		# getting face width in the pixels
 		face_width.append(w)
 
 	# return the face width in pixel
-	return face_width, list(zip(middle_x, middle_y))
+	return face_width
 
+def get_face_position(frame):
+	frame_height = frame.shape[0]
+	frame_width = frame.shape[1]
+
+	# converting color image to gray scale image
+	gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+	# detecting face in the image
+	faces = face_detector.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5)
+
+	position = []
+	for x,y,w,h in faces:
+		mx = x + int(w / 2)
+
+		if mx > (frame_width / 2):
+			position.append("R")
+		else:
+			position.append("L")
+
+	return position
 
 # focal length finder function
 def get_focal_length(real_distance, real_width, width_in_rf_image):
@@ -67,45 +75,49 @@ def get_distance(focal_length, real_width, width_in_rf_image):
 def get_face_distance_approx(focal_length, known_width, frame):
 	distance = []
 	# get the width of pixel from the image
-	test_face_width_pixel, middle_x_y = get_width_pixel(frame)
+	test_face_width_pixel = get_width_pixel(frame)
 
 	if test_face_width_pixel != 0:
+		# get face position
+		face_position = get_face_position(frame)
 		# get distance
 		distance = get_distance(focal_length, known_width, test_face_width_pixel)
 
 		# Drawing Text on the screen
 		for idx,d in enumerate(distance):
 			cv2.putText(frame, f"Person {idx+1}: {round(d,2)} CM", (30, 35+idx*30), fonts, 0.6, GREEN, 1)
+	
 
-	return frame, distance, middle_x_y
+	data_list = zip(face_position, distance)
 
+	data_dict = {"L": [], "R": []}
+	for position, distance in data_list:
+		data_dict[position].append(distance)
 
-
-def url_to_image(url):
-  image = io.imread(url)
-  # return the image
-  return cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-
-
+	return frame, data_dict
 
 def main():
 	# initialize pygame
 	pygame.init()
 	pygame.mixer.init()
 
-	# Load and play the music file
-	pygame.mixer.music.load('sound/bluestone-alley.mp3')
-	pygame.mixer.music.play(-1)  # -1 means play the music on loop
+	# Get a free channel
+	channel = pygame.mixer.find_channel()
 
-	# Set the initial volume to 0.0 (0% volume)
-	volume = 0.0
-	pygame.mixer.music.set_volume(volume)
+	# Set the volume for left and right speakers
+	left_volume = 0.0
+	right_volume = 0.0
+	# Set the volume for left and right speakers
+	channel.set_volume(left_volume, right_volume)
 
+	# Load and play the audio file
+	sound = pygame.mixer.Sound('sound/bluestone-alley.mp3')
+	channel.play(sound)
 
 	# read the references image
 	ref_image = cv2.imread('ref_image.jpg')
 	# getting the pixel width of the reference image first
-	ref_face_width_pixel, _ = get_width_pixel(ref_image)
+	ref_face_width_pixel = get_width_pixel(ref_image)
 	# calculate the focal length
 	# the index 1, because it detect two faces arrogantly, the correct one at index 1
 	focal_length = get_focal_length(known_distance, known_width, ref_face_width_pixel[1])
@@ -117,43 +129,45 @@ def main():
 	while True:
 		ret, frame = cap.read()
 
-		frame_height = frame.shape[0]
-		frame_width = frame.shape[1]
-
-		frame, distance, middle_x_y = get_face_distance_approx(focal_length, known_width, frame)
+		frame, distance = get_face_distance_approx(focal_length, known_width, frame)
 		cv2.imshow("frame", frame)
 
-		if distance != []:
-			# normalize the distance range 0 to 1
-			MIN = 30 	# centimeter
-			MAX = 150 	# centimeter	 
+		# normalize the distance range 0 to 1
+		MIN = 30 	# centimeter
+		MAX = 100 	# centimeter
 
-			distance = (min(distance) - MIN) / (MAX - MIN)
-			if distance < 1 and distance > 0:
-				# added to volume in reverse, the bigger the distance the lower the volume
-				volume = 1.0 - distance
+		print(f"Distance : {distance}")
 
-			# # convert to numpy array
-			# distance = np.array(distance)
-			# min_index = np.argmin(distance)
+		if distance["L"] != []:
+				left = (min(distance["L"]) - MIN) / (MAX - MIN)
+				left_volume = 1.0 - left
 
-			# distance = (distance[min_index] - MIN) / (MAX - MIN)
-			# if distance < 1 and distance > 0:
-			# 	# added to volume in reverse, the bigger the distance the lower the volume
-			# 	if middle_x_y[min_index][0] < frame_width:
-			# 		left_speaker = 1.0 - distance 
-			# 	if middle_x_y[min_index][0] > frame_width:
-			# 		right_speaker = 1.0 - distance 
-				
 		else:
-			if volume > 0.0:
+			if left_volume > 0.0:
 				# slowly decrease volume if no face detected
-				volume -= 0.003
+				left_volume -= 0.05
+
+
+		if distance["R"] != []:
+				right = (min(distance["R"]) - MIN) / (MAX - MIN)
+				right_volume = 1.0 - right
+
+		else:
+			if right_volume > 0.0:
+				# slowly decrease volume if no face detected
+				right_volume -= 0.05
+
+
+
+		# safety limit
+		left_volume = max(0.0, min(left_volume, 1.0))
+		right_volume = max(0.0, min(right_volume, 1.0))
 
 				
-		# set volume
-		pygame.mixer.music.set_volume(volume)
-		print(f"Current Volume : {pygame.mixer.music.get_volume()}")
+		# Set the volume for left and right speakers
+		channel.set_volume(left_volume, right_volume)
+		print(f"After - Left Volume : {left_volume}")
+		print(f"After - Right Volume : {right_volume}\n\n")
 
 		# quit the program if you press 'q' on keyboard
 		if cv2.waitKey(1) == ord("q"):
