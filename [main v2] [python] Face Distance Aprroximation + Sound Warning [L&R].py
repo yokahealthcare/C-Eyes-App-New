@@ -19,15 +19,19 @@ BLACK = (0, 0, 0)
 known_distance = 70
 known_width = 15.5
 
-def get_width_pixel(image):
+# width of the video feed
+WIDTH = 0
 
-	face_width = [] # making face width to zero
-
+def detect_faces(frame):
 	# converting color image to gray scale image
-	gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
+	gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 	# detecting face in the image
 	faces = face_detector.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5)
+
+	return faces
+
+def get_width_pixel(faces):
+	face_width = [] # making face width to zero
 
 	for x,y,w,h in faces:
 		# getting face width in the pixels
@@ -36,21 +40,15 @@ def get_width_pixel(image):
 	# return the face width in pixel
 	return face_width
 
-def get_face_position(frame):
-	frame_height = frame.shape[0]
-	frame_width = frame.shape[1]
-
-	# converting color image to gray scale image
-	gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-	# detecting face in the image
-	faces = face_detector.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5)
+def get_face_position(faces):
 
 	position = []
 	for x,y,w,h in faces:
 		mx = x + int(w / 2)
+		print(f"mx : {mx}")
+		print(f"WIDTH : {WIDTH}")
 
-		if mx > (frame_width / 2):
+		if mx > (WIDTH / 2):
 			position.append("R")
 		else:
 			position.append("L")
@@ -72,21 +70,17 @@ def get_distance(focal_length, real_width, width_in_rf_image):
 	# return the distance
 	return distance
 
-def get_face_distance_approx(focal_length, known_width, frame):
+def get_face_distance_approx(focal_length, known_width, faces):
 	distance = []
 	# get the width of pixel from the image
-	test_face_width_pixel = get_width_pixel(frame)
+	test_face_width_pixel = get_width_pixel(faces)
 
 	if test_face_width_pixel != 0:
 		# get face position
-		face_position = get_face_position(frame)
+		face_position = get_face_position(faces)
+		print(f"Face Position : {face_position}")
 		# get distance
-		distance = get_distance(focal_length, known_width, test_face_width_pixel)
-
-		# Drawing Text on the screen
-		for idx,d in enumerate(distance):
-			cv2.putText(frame, f"Person {idx+1}: {round(d,2)} CM", (30, 35+idx*30), fonts, 0.6, GREEN, 1)
-	
+		distance = get_distance(focal_length, known_width, test_face_width_pixel)	
 
 	data_list = zip(face_position, distance)
 
@@ -94,7 +88,7 @@ def get_face_distance_approx(focal_length, known_width, frame):
 	for position, distance in data_list:
 		data_dict[position].append(distance)
 
-	return frame, data_dict
+	return data_dict
 
 def main():
 	# initialize pygame
@@ -111,13 +105,15 @@ def main():
 	channel.set_volume(left_volume, right_volume)
 
 	# Load and play the audio file
-	sound = pygame.mixer.Sound('sound/bluestone-alley.mp3')
-	channel.play(sound)
+	sound = pygame.mixer.Sound('sound/alarm-fire.mp3')
+	channel.play(sound, -1)
 
 	# read the references image
 	ref_image = cv2.imread('ref_image.jpg')
+	# detect faces on references image
+	faces = detect_faces(ref_image)
 	# getting the pixel width of the reference image first
-	ref_face_width_pixel = get_width_pixel(ref_image)
+	ref_face_width_pixel = get_width_pixel(faces)
 	# calculate the focal length
 	# the index 1, because it detect two faces arrogantly, the correct one at index 1
 	focal_length = get_focal_length(known_distance, known_width, ref_face_width_pixel[1])
@@ -126,17 +122,30 @@ def main():
 
 	# Start the camera
 	cap = cv2.VideoCapture(0)
+	ret, frame = cap.read()
+	# update the WIDTH value of screen
+	global WIDTH
+	WIDTH = frame.shape[1]
+
 	while True:
 		ret, frame = cap.read()
 
-		frame, distance = get_face_distance_approx(focal_length, known_width, frame)
-		cv2.imshow("frame", frame)
+		faces = detect_faces(frame)
+		print(f"Faces : {faces}")
+		distance = get_face_distance_approx(focal_length, known_width, faces)
+
+		# Drawing Text on the screen
+		#for idx,d in enumerate(distance):
+			#cv2.putText(frame, f"Person {idx+1}: {round(d,2)} CM", (30, 35+idx*30), fonts, 0.6, GREEN, 1)
+		
+		cv2.imshow("Result of Detection", frame)
 
 		# normalize the distance range 0 to 1
 		MIN = 30 	# centimeter
 		MAX = 100 	# centimeter
 
 		print(f"Distance : {distance}")
+		print(f"WIDTH : {WIDTH}")
 
 		if distance["L"] != []:
 				left = (min(distance["L"]) - MIN) / (MAX - MIN)
@@ -166,8 +175,8 @@ def main():
 				
 		# Set the volume for left and right speakers
 		channel.set_volume(left_volume, right_volume)
-		print(f"After - Left Volume : {left_volume}")
-		print(f"After - Right Volume : {right_volume}\n\n")
+		# print(f"After - Left Volume : {left_volume}")
+		# print(f"After - Right Volume : {right_volume}\n\n")
 
 		# quit the program if you press 'q' on keyboard
 		if cv2.waitKey(1) == ord("q"):
