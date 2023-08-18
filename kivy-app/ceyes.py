@@ -47,8 +47,8 @@ def get_face_position(faces):
     position = []
     for x, y, w, h in faces:
         mx = x + int(w / 2)
-        print(f"mx : {mx}")
-        print(f"WIDTH : {WIDTH}")
+        # print(f"mx : {mx}")
+        # print(f"WIDTH : {WIDTH}")
 
         if mx > (WIDTH / 2):
             position.append("R")
@@ -83,7 +83,7 @@ def get_face_distance_approx(focal_length, known_width, faces):
     if test_face_width_pixel != 0:
         # get face position
         face_position = get_face_position(faces)
-        print(f"Face Position : {face_position}")
+        # print(f"Face Position : {face_position}")
         # get distance
         distance = get_distance(focal_length, known_width, test_face_width_pixel)
 
@@ -133,8 +133,8 @@ def make_a_sound(distance):
     MIN = 30  # centimeter
     MAX = 100  # centimeter
 
-    print(f"Distance : {distance}")
-    print(f"WIDTH : {WIDTH}")
+    # print(f"Distance : {distance}")
+    # print(f"WIDTH : {WIDTH}")
 
     if distance["L"] != []:
         left = (min(distance["L"]) - MIN) / (MAX - MIN)
