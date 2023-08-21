@@ -14,11 +14,11 @@ class MainApp(MDApp):
         self.image = Image()
 
         layout.add_widget(self.image)
-        layout.add_widget(MDRaisedButton(
-            text="CLICK HERE",
-            pos_hint={"center_x":.5, 'center_y':.5},
-            size_hint=(None, None)
-        ))
+        # layout.add_widget(MDRaisedButton(
+        #     text="CLICK HERE",
+        #     pos_hint={"center_x":.5, 'center_y':.5},
+        #     size_hint=(None, None)
+        # ))
 
         # initialize pygame
         pygame.init()
@@ -68,7 +68,7 @@ class MainApp(MDApp):
         MIN = 30  # centimeter
         MAX = 100  # centimeter
 
-        # print(f"Distance : {distance}")
+        print(f"Distance : {distance}")
 
         if distance["L"] != []:
             left = (min(distance["L"]) - MIN) / (MAX - MIN)
@@ -98,6 +98,12 @@ class MainApp(MDApp):
         for x, y, w, h in faces:
             # draw the rectangle on the face
             cv2.rectangle(frame, (x, y), (x + w, y + h), eye.GREEN, 2)
+
+        idx = 0
+        for key, values in distance.items():
+            for value in values:
+                cv2.putText(frame, f"Person {idx+1}: {round(value,2)} CM", (30, 35+idx*30), eye.fonts, 0.6, eye.GREEN, 1)
+                idx += 1
 
         return frame
 
