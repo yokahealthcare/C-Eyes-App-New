@@ -112,13 +112,16 @@ def main():
 	ref_image = cv2.imread('ref_image.jpg')
 	# detect faces on references image
 	faces = detect_faces(ref_image)
+	print(f"Faces : {faces}")
 	# getting the pixel width of the reference image first
 	ref_face_width_pixel = get_width_pixel(faces)
+	print(f"Ref Face Width Pixel : {ref_face_width_pixel}")
+
 	# calculate the focal length
 	# the index 1, because it detect two faces arrogantly, the correct one at index 1
 	focal_length = get_focal_length(known_distance, known_width, ref_face_width_pixel[1])
 	print(f"Focal Length has been Founded \t: {focal_length}\n")
-
+	input("kkk")
 
 	# Start the camera
 	cap = cv2.VideoCapture(0)
