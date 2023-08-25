@@ -1,13 +1,6 @@
-# library
 import cv2
 import pygame
-import numpy as np
-
-# face detector object
-face_detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-
-# defining the fonts
-fonts = cv2.FONT_HERSHEY_COMPLEX
+import time
 
 # colors
 GREEN = (0, 255, 0)
@@ -15,175 +8,219 @@ RED = (0, 0, 255)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
-# get from references image
-known_distance = 70
-known_width = 15.5
 
-# width of the video feed
-WIDTH = 0
+class FaceDetector:
+    def __init__(self, f, width):
+        self.frame = f
+        self.width = width
+        self.face_detector = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+        self.faces = None
+        self.faces_width = None
+        self.faces_position = None
 
-def detect_faces(frame):
-	# converting color image to gray scale image
-	gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-	# detecting face in the image
-	faces = face_detector.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5)
+    def detect_faces(self):
+        # Converting color image to grayscale image
+        gray_image = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+        # Detecting faces in the image
+        self.faces = self.face_detector.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5)
 
-	return faces
+    def get_face_widths(self):
+        self.faces_width = [w for _, _, w, _ in self.faces]
 
-def get_width_pixel(faces):
-	face_width = [] # making face width to zero
+    def get_face_positions(self):
+        positions = []
+        for x, _, w, _ in self.faces:
+            mx = x + int(w / 2)
+            if mx > (self.width / 2):
+                positions.append("R")
+            else:
+                positions.append("L")
 
-	for x,y,w,h in faces:
-		# getting face width in the pixels
-		face_width.append(w)
+        self.faces_position = positions
 
-	# return the face width in pixel
-	return face_width
+    def get_face_information(self):
+        self.detect_faces()
+        self.get_face_widths()
+        self.get_face_positions()
 
-def get_face_position(faces):
-
-	position = []
-	for x,y,w,h in faces:
-		mx = x + int(w / 2)
-		print(f"mx : {mx}")
-		print(f"WIDTH : {WIDTH}")
-
-		if mx > (WIDTH / 2):
-			position.append("R")
-		else:
-			position.append("L")
-
-	return position
-
-# focal length finder function
-def get_focal_length(real_distance, real_width, width_in_rf_image):
-    # finding the focal length
-    focal_length = (width_in_rf_image * real_distance) / real_width
-    return focal_length
-
-# distance estimation function
-def get_distance(focal_length, real_width, width_in_rf_image):
-	distance = []
-	for w in width_in_rf_image:
-		distance.append((real_width * focal_length) / w)
-
-	# return the distance
-	return distance
-
-def get_face_distance_approx(focal_length, known_width, faces):
-	distance = []
-	# get the width of pixel from the image
-	test_face_width_pixel = get_width_pixel(faces)
-
-	if test_face_width_pixel != 0:
-		# get face position
-		face_position = get_face_position(faces)
-		print(f"Face Position : {face_position}")
-		# get distance
-		distance = get_distance(focal_length, known_width, test_face_width_pixel)	
-
-	data_list = zip(face_position, distance)
-
-	data_dict = {"L": [], "R": []}
-	for position, distance in data_list:
-		data_dict[position].append(distance)
-
-	return data_dict
-
-def main():
-	# initialize pygame
-	pygame.init()
-	pygame.mixer.init()
-
-	# Get a free channel
-	channel = pygame.mixer.find_channel()
-
-	# Set the volume for left and right speakers
-	left_volume = 0.0
-	right_volume = 0.0
-	# Set the volume for left and right speakers
-	channel.set_volume(left_volume, right_volume)
-
-	# Load and play the audio file
-	sound = pygame.mixer.Sound('alarm-fire.mp3')
-	channel.play(sound, -1)
-
-	# read the references image
-	ref_image = cv2.imread('ref_image.jpg')
-	# detect faces on references image
-	faces = detect_faces(ref_image)
-	# getting the pixel width of the reference image first
-	ref_face_width_pixel = get_width_pixel(faces)
-	# calculate the focal length
-	# the index 1, because it detect two faces arrogantly, the correct one at index 1
-	focal_length = get_focal_length(known_distance, known_width, ref_face_width_pixel[1])
-	print(f"Focal Length has been Founded \t: {focal_length}\n")
+    def debug(self):
+        print(f"Faces                   : {self.faces}")
+        print(f"Faces Width             : {self.faces_width}")
+        print(f"Faces Position          : {self.faces_position}")
 
 
-	# Start the camera
-	cap = cv2.VideoCapture(0)
-	ret, frame = cap.read()
-	# update the WIDTH value of screen
-	global WIDTH
-	WIDTH = frame.shape[1]
+class FaceDistanceEstimator:
+    def __init__(self, FaceDetectorObject):
+        # get from references image
+        self.real_distance = 70
+        self.real_width = 15.5
 
-	while True:
-		ret, frame = cap.read()
+        self.fd = FaceDetectorObject
+        self.focal_length = None
+        self.distances = None
 
-		faces = detect_faces(frame)
-		print(f"Faces : {faces}")
-		distance = get_face_distance_approx(focal_length, known_width, faces)
+    def get_focal_length(self):
+        # finding the focal length
+        self.focal_length = (self.fd.faces_width * self.real_distance) / self.real_width
 
-		# Drawing Text on the screen
-		#for idx,d in enumerate(distance):
-			#cv2.putText(frame, f"Person {idx+1}: {round(d,2)} CM", (30, 35+idx*30), fonts, 0.6, GREEN, 1)
-		
-		cv2.imshow("Result of Detection", frame)
+    def get_distance(self):
+        self.distances = [(self.real_width * self.focal_length) / w for w in self.fd.faces_width]
 
-		# normalize the distance range 0 to 1
-		MIN = 30 	# centimeter
-		MAX = 100 	# centimeter
+    def get_face_distance_approx(self):
+        data_dict = {"L": [], "R": []}
+        for position, distance in zip(self.fd.faces_position, self.distances):
+            data_dict[position].append(distance)
 
-		print(f"Distance : {distance}")
-		print(f"WIDTH : {WIDTH}")
-
-		if distance["L"] != []:
-				left = (min(distance["L"]) - MIN) / (MAX - MIN)
-				left_volume = 1.0 - left
-
-		else:
-			if left_volume > 0.0:
-				# slowly decrease volume if no face detected
-				left_volume -= 0.05
+        return data_dict
 
 
-		if distance["R"] != []:
-				right = (min(distance["R"]) - MIN) / (MAX - MIN)
-				right_volume = 1.0 - right
+class SurroundAudio:
+    def __init__(self):
+        # Normalize the distance range 0 to 1
+        self.MIN = 30  # centimeter
+        self.MAX = 100  # centimeter
 
-		else:
-			if right_volume > 0.0:
-				# slowly decrease volume if no face detected
-				right_volume -= 0.05
+        # Get distance dictionary
+        self.distance_dict = None
+
+        # Get a free channel
+        self.channel = pygame.mixer.find_channel()
+        while self.channel is None:
+            print("No free channels available. Waiting...")
+            time.sleep(1)
+            self.channel = pygame.mixer.find_channel()
+
+        # Set the volume for left and right speakers
+        self.left_volume = 0.0
+        self.right_volume = 0.0
+
+        # Set the volume for left and right speakers
+        self.channel.set_volume(self.left_volume, self.right_volume)
+
+        # Load the default audio file
+        self.audio = pygame.mixer.Sound("alarm-fire.mp3")
+
+    def load_audio(self, audiofile):
+        # Load the audio file
+        self.audio = pygame.mixer.Sound(audiofile)
+
+    def play_audio(self):
+        self.channel.play(self.audio, -1)
+
+    def set_volume(self, left_vol, right_vol):
+        # safety limit
+        self.left_volume = max(0.0, min(left_vol, 1.0))
+        self.right_volume = max(0.0, min(right_vol, 1.0))
+
+        # Set the volume for left and right speakers
+        self.channel.set_volume(self.left_volume, self.right_volume)
+
+    def compute(self, dist_dict):
+        self.distance_dict = dist_dict
+
+        if self.distance_dict["L"]:
+            left = (min(self.distance_dict["L"]) - self.MIN) / (self.MAX - self.MIN)
+            self.left_volume = 1.0 - left
+        else:
+            if self.left_volume > 0.0:
+                # slowly decrease volume if no face detected
+                self.left_volume -= 0.05
+
+        if self.distance_dict["R"]:
+            right = (min(self.distance_dict["R"]) - self.MIN) / (self.MAX - self.MIN)
+            self.right_volume = 1.0 - right
+
+        else:
+            if self.right_volume > 0.0:
+                # slowly decrease volume if no face detected
+                self.right_volume -= 0.05
+
+        self.set_volume(self.left_volume, self.right_volume)
 
 
+class ImageController:
+    def __init__(self, f):
+        self.frame = f
+        self.faces = None
+        self.distance = None
 
-		# safety limit
-		left_volume = max(0.0, min(left_volume, 1.0))
-		right_volume = max(0.0, min(right_volume, 1.0))
+    def annotate(self):
+        if self.faces is None or self.distance is None:
+            print(f"You haven't set the 'faces' and 'distance'")
+            return 0
 
-				
-		# Set the volume for left and right speakers
-		channel.set_volume(left_volume, right_volume)
-		# print(f"After - Left Volume : {left_volume}")
-		# print(f"After - Right Volume : {right_volume}\n\n")
+        for x, y, w, h in self.faces:
+            # draw the rectangle on the face
+            cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
 
-		# quit the program if you press 'q' on keyboard
-		if cv2.waitKey(1) == ord("q"):
-			break
+    def show(self, title="Showing Image"):
+        cv2.imshow(title, self.frame)
 
-	cap.release()
-	cv2.destroyAllWindows()
+    def set_faces(self, f):
+        self.faces = f
+
+    def set_distance(self, d):
+        self.distance = d
+
 
 if __name__ == "__main__":
-	main()
+    # read the references image
+    ref_image = cv2.imread('ref_image.jpg')
+
+    ref_fd = FaceDetector(ref_image, 0)
+    # process face
+    ref_fd.get_face_information()
+    # error in detection, so the true face is at index 1
+    ref_fd.faces_width = ref_fd.faces_width[1]
+
+    # process distance
+    ref_dist = FaceDistanceEstimator(ref_fd)
+    ref_dist.get_focal_length()
+
+    # Start the camera
+    cap = cv2.VideoCapture(0)
+
+    # initialize pygame
+    pygame.init()
+    pygame.mixer.init()
+
+    # Define SurroundAudio object
+    speaker = SurroundAudio()
+    speaker.play_audio()
+
+    while True:
+        ret, frame = cap.read()
+
+        # Create object of FaceDetector & Get information about the face
+        fd = FaceDetector(frame, frame.shape[1])
+        fd.get_face_information()
+
+        # Create object of FaceDistanceEstimator
+        dist = FaceDistanceEstimator(fd)
+        # Set the focal length value to object
+        dist.focal_length = ref_dist.focal_length
+        # Get distance of face
+        dist.get_distance()
+
+        # Create object of Image Controller
+        im_controller = ImageController(f=frame)
+        # Set the 'faces' inside the ImageController object
+        im_controller.set_faces(fd.faces)
+        # Set the 'distance' inside the ImageController object
+        im_controller.set_distance(dist.distances)
+        # Process & Show the frame
+        im_controller.annotate()
+        im_controller.show()
+
+        # Get the distance value in form of dictionary
+        distance_dict = dist.get_face_distance_approx()
+
+        # Compute the distance with 8D audio
+        speaker.compute(distance_dict)
+
+        # quit the program if you press 'q' on keyboard
+        if cv2.waitKey(1) == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
