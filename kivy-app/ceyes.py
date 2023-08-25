@@ -1,7 +1,5 @@
 # library
 import cv2
-import pygame
-import numpy as np
 
 # face detector object
 face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -113,50 +111,3 @@ def retrieve_focal_length():
 
 # focal length
 focal_length = retrieve_focal_length()
-
-
-def make_a_sound(distance):
-    # Get a free channel
-    channel = pygame.mixer.find_channel()
-
-    # Set the volume for left and right speakers
-    left_volume = 0.0
-    right_volume = 0.0
-    # Set the volume for left and right speakers
-    channel.set_volume(left_volume, right_volume)
-
-    # Load and play the audio file
-    sound = pygame.mixer.Sound('../sound/alarm-fire.mp3')
-    channel.play(sound, -1)
-
-    # normalize the distance range 0 to 1
-    MIN = 30  # centimeter
-    MAX = 100  # centimeter
-
-    # print(f"Distance : {distance}")
-    # print(f"WIDTH : {WIDTH}")
-
-    if distance["L"] != []:
-        left = (min(distance["L"]) - MIN) / (MAX - MIN)
-        left_volume = 1.0 - left
-
-    else:
-        if left_volume > 0.0:
-            # slowly decrease volume if no face detected
-            left_volume -= 0.05
-
-    if distance["R"] != []:
-        right = (min(distance["R"]) - MIN) / (MAX - MIN)
-        right_volume = 1.0 - right
-
-    else:
-        if right_volume > 0.0:
-            # slowly decrease volume if no face detected
-            right_volume -= 0.05
-
-    # safety limit
-    left_volume = max(0.0, min(left_volume, 1.0))
-    right_volume = max(0.0, min(right_volume, 1.0))
-
-    # Set the volume for left and right speakers
-    channel.set_volume(left_volume, right_volume)
