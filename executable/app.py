@@ -8,6 +8,9 @@ RED = (0, 0, 255)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
+# defining the fonts
+fonts = cv2.FONT_HERSHEY_COMPLEX
+
 
 class FaceDetector:
     def __init__(self, f, width):
@@ -61,7 +64,7 @@ class FaceDistanceEstimator:
 
     def get_focal_length(self):
         # finding the focal length
-        self.focal_length = (self.fd.faces_width * self.real_distance) / self.real_width
+        self.focal_length = (self.fd.faces_width[0] * self.real_distance) / self.real_width
 
     def get_distance(self):
         self.distances = [(self.real_width * self.focal_length) / w for w in self.fd.faces_width]
@@ -72,6 +75,9 @@ class FaceDistanceEstimator:
             data_dict[position].append(distance)
 
         return data_dict
+
+    def debug(self):
+        print(f"Distance        : {self.distances}")
 
 
 class SurroundAudio:
@@ -149,9 +155,14 @@ class ImageController:
             print(f"You haven't set the 'faces' and 'distance'")
             return 0
 
+        # Box
         for x, y, w, h in self.faces:
             # draw the rectangle on the face
             cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
+
+        # Text
+        for idx, d in enumerate(self.distance):
+            cv2.putText(self.frame, f"Person {idx + 1}: {round(d, 2)} CM", (30, 35 + idx * 20), fonts, 0.5, GREEN, 1)
 
     def show(self, title="Showing Image"):
         cv2.imshow(title, self.frame)
@@ -164,16 +175,14 @@ class ImageController:
 
 
 if __name__ == "__main__":
-    # read the references image
+    # Read the references image
     ref_image = cv2.imread('ref_image.jpg')
 
+    # Process face detector on reference image
     ref_fd = FaceDetector(ref_image, 0)
-    # process face
     ref_fd.get_face_information()
-    # error in detection, so the true face is at index 1
-    ref_fd.faces_width = ref_fd.faces_width[1]
 
-    # process distance
+    # Process distance on reference image
     ref_dist = FaceDistanceEstimator(ref_fd)
     ref_dist.get_focal_length()
 

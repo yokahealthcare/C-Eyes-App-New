@@ -1,3 +1,9 @@
+# [FINAL v2] C-Eyes.py
+# Added Features:
+# 1. Face detectiong using haarcascade_frontalface
+# Problem:
+# 1. It can compile to .exe file, but it always threw an error
+
 import cv2
 import pygame
 import time
@@ -171,7 +177,8 @@ if __name__ == "__main__":
     # process face
     ref_fd.get_face_information()
     # error in detection, so the true face is at index 1
-    ref_fd.faces_width = ref_fd.faces_width[1]
+    ref_fd.faces_width = ref_fd.faces_width[0]
+    ref_fd.debug()
 
     # process distance
     ref_dist = FaceDistanceEstimator(ref_fd)
