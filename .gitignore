@@ -6,3 +6,4 @@ executable/facenet-pytorch/app
 executable/mtcnn-torch/app
 executable/app
 executable/app
+midas/
