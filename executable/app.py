@@ -2,6 +2,7 @@ import cv2
 import pygame
 import time
 
+
 # colors
 GREEN = (0, 255, 0)
 RED = (0, 0, 255)

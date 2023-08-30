@@ -1,8 +1,8 @@
 # [FINAL v2] C-Eyes.py
 # Added Features:
-# 1. ..................
+# 1. Face detectiong using mtcnn_cv2
 # Problem:
-# 1. ..................
+# 1. It can compile to .exe file, but it always threw an error
 
 import cv2
 import pygame
