@@ -5,5 +5,4 @@ executable/dist/app
 executable/facenet-pytorch/app
 executable/mtcnn-torch/app
 executable/app
-executable/app
-midas/
+midas/weights
