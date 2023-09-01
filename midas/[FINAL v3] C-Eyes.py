@@ -10,6 +10,7 @@ import pygame
 import time
 from mtcnn_cv2 import MTCNN
 import torch
+import os
 
 import numpy as np
 from midas.model_loader import load_model
@@ -227,10 +228,10 @@ class ImageController:
 
 
 class Midas:
-    def __init__(self):
+    def __init__(self, model_type="midas_v21_small_256"):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model_path = "weights/midas_v21_small_256.pt"
-        self.model_type = "midas_v21_small_256"
+        self.model_path = f"weights/{model_type}.pt"
+        self.model_type = model_type
         self.optimize = False
         self.height = None
         self.square = False
@@ -421,7 +422,7 @@ def main():
     cv2.destroyAllWindows()
 
 
-def midas():
+def midas(model_type="midas_v21_small_256"):
     # initialize pygame
     pygame.init()
     pygame.mixer.init()
@@ -434,7 +435,7 @@ def midas():
     # Define FaceDetector
     fd = FaceDetector()
     # Define the Midas
-    mi = Midas()
+    mi = Midas(model_type)
 
     with torch.no_grad():
         fps = 1
@@ -518,7 +519,18 @@ if __name__ == "__main__":
             main()
         elif choice == "2":
             print("You selected Depth Map Estimation")
-            midas()
+            # Replace 'your_folder_path' with the actual path to your folder
+            folder_path = 'weights/'
+            extension = '.pt'  # Specify the file extension you want to filter
+            # List all files in the folder with the specified extension
+            files = [file[:-3] for file in os.listdir(folder_path) if file.endswith(extension)]
+            # Print the list of files
+            print(f"Select {len(files)} MiDAS pre-trained model below:")
+            for idx, file in enumerate(files):
+                print(f"{idx+1}. {file}")
+
+            choice = int(input("Enter your choice: "))
+            midas(files[choice-1])
         elif choice == "3":
             print("Exiting...")
             print("Thank You")
