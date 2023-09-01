@@ -135,7 +135,7 @@ class SurroundAudio:
         self.channel.set_volume(self.left_volume, self.right_volume)
 
         # Load the default audio file
-        self.audio = pygame.mixer.Sound("alarm-fire.mp3")
+        self.audio = pygame.mixer.Sound("../sound/alarm-fire.mp3")
 
     def play_audio(self):
         self.channel.play(self.audio, -1)
@@ -200,7 +200,8 @@ class ImageController:
                 # draw the rectangle on the face
                 cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
                 # Centimeter Text
-                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.distance[idx], 2)} CM", (30, 35 + idx * 20), fonts, 0.5, GREEN, 1)
+                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.distance[idx], 2)} CM", (30, 35 + idx * 20),
+                            fonts, 0.5, GREEN, 1)
 
         elif t == "depthmap":
             if self.faces is None or self.mean_area is None:
@@ -212,7 +213,8 @@ class ImageController:
                 # draw the rectangle on the face
                 cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
                 # Depth Map Text
-                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.mean_area[idx], 3)}", (x, y + h), fonts, 0.5, BLACK, 1)
+                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.mean_area[idx], 3)}", (x, y + h), fonts, 0.5,
+                            BLACK, 1)
 
     def show(self, title="Showing Image"):
         cv2.imshow(title, self.frame)
@@ -341,7 +343,7 @@ class Midas:
 
 def main():
     # Read the references image
-    ref_image = cv2.imread('ref_image.jpg')
+    ref_image = cv2.imread('../ref_image.jpg')
 
     # Process face detector on reference image
     ref_fd = FaceDetector()
@@ -429,7 +431,7 @@ def midas(model_type="midas_v21_small_256"):
 
     # Define SurroundAudio object
     speaker = SurroundAudio()
-    speaker.set_min_max(minimum=100, maximum=200)
+    speaker.set_min_max(minimum=0, maximum=100)
     speaker.play_audio()
 
     # Define FaceDetector
@@ -527,14 +529,13 @@ if __name__ == "__main__":
             # Print the list of files
             print(f"Select {len(files)} MiDAS pre-trained model below:")
             for idx, file in enumerate(files):
-                print(f"{idx+1}. {file}")
+                print(f"{idx + 1}. {file}")
 
             choice = int(input("Enter your choice: "))
-            midas(files[choice-1])
+            midas(files[choice - 1])
         elif choice == "3":
             print("Exiting...")
             print("Thank You")
             break
         else:
             print("Invalid choice. Please select 1, 2, or 3.")
-
