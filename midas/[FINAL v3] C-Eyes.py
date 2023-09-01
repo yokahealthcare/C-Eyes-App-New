@@ -429,7 +429,7 @@ def midas(model_type="midas_v21_small_256"):
 
     # Define SurroundAudio object
     speaker = SurroundAudio()
-    speaker.set_min_max(minimum=100, maximum=200)
+    speaker.set_min_max(minimum=0, maximum=100)
     speaker.play_audio()
 
     # Define FaceDetector

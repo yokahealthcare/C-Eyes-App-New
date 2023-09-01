@@ -1,4 +1,4 @@
-name: production
+name: ceyes
 channels:
   - defaults
 dependencies:

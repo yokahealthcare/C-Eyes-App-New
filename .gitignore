@@ -6,3 +6,6 @@ executable/facenet-pytorch/app
 executable/mtcnn-torch/app
 executable/app
 midas/weights
+yolov3.cfg
+yolov3.weights
+coco.names
