@@ -1,6 +1,7 @@
 # [FINAL v3] C-Eyes.py
 # Added Features:
-# 1. ...
+# 1. Midas Class
+# 2. Cropping Midas Area with the coordinate of mtcnn_cv2
 # Problem:
 # 1. ...
 
@@ -12,6 +13,8 @@ import torch
 
 import numpy as np
 from midas.model_loader import load_model
+
+import pyfiglet
 
 # colors
 GREEN = (0, 255, 0)
@@ -109,9 +112,9 @@ class FaceDistanceEstimator:
 
 class SurroundAudio:
     def __init__(self):
-        # Normalize the distance range 0 to 1
-        self.MIN = 30  # centimeter
-        self.MAX = 100  # centimeter
+        # Set MIN and MAX to Normalize the distance range 0 to 1
+        self.MIN = None
+        self.MAX = None
 
         # Get distance dictionary
         self.distance_dict = None
@@ -133,12 +136,11 @@ class SurroundAudio:
         # Load the default audio file
         self.audio = pygame.mixer.Sound("../sound/alarm-fire.mp3")
 
-    def load_audio(self, audiofile):
-        # Load the audio file
-        self.audio = pygame.mixer.Sound(audiofile)
-
     def play_audio(self):
         self.channel.play(self.audio, -1)
+
+    def stop_audio(self):
+        self.channel.stop()
 
     def set_volume(self, left_vol, right_vol):
         # safety limit
@@ -148,7 +150,15 @@ class SurroundAudio:
         # Set the volume for left and right speakers
         self.channel.set_volume(self.left_volume, self.right_volume)
 
+    def set_min_max(self, minimum, maximum):
+        self.MIN = minimum
+        self.MAX = maximum
+
     def compute(self, dist_dict):
+        if self.MIN is None or self.MAX is None:
+            print(f"You haven't set the 'MIN' and 'MAX'")
+            return 0
+
         self.distance_dict = dist_dict
 
         if self.distance_dict["L"]:
@@ -176,20 +186,32 @@ class ImageController:
         self.frame = f
         self.faces = None
         self.distance = None
+        self.mean_area = None
 
-    def annotate(self):
-        if self.faces is None or self.distance is None:
-            print(f"You haven't set the 'faces' and 'distance'")
-            return 0
+    def annotate(self, t):
+        if t == "normal":
+            if self.faces is None or self.distance is None:
+                print(f"You haven't set the 'faces' and 'distance'")
+                return 0
 
-        # Box
-        for x, y, w, h in self.faces:
-            # draw the rectangle on the face
-            cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
+            # Box
+            for idx, (x, y, w, h) in enumerate(self.faces):
+                # draw the rectangle on the face
+                cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
+                # Centimeter Text
+                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.distance[idx], 2)} CM", (30, 35 + idx * 20), fonts, 0.5, GREEN, 1)
 
-        # Text
-        for idx, d in enumerate(self.distance):
-            cv2.putText(self.frame, f"Person {idx + 1}: {round(d, 2)} CM", (30, 35 + idx * 20), fonts, 0.5, GREEN, 1)
+        elif t == "depthmap":
+            if self.faces is None or self.mean_area is None:
+                print(f"You haven't set the 'faces' and 'mean_area'")
+                return 0
+
+            # Box
+            for idx, (x, y, w, h) in enumerate(self.faces):
+                # draw the rectangle on the face
+                cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
+                # Depth Map Text
+                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.mean_area[idx], 3)}", (x, y + h), fonts, 0.5, BLACK, 1)
 
     def show(self, title="Showing Image"):
         cv2.imshow(title, self.frame)
@@ -199,6 +221,9 @@ class ImageController:
 
     def set_distance(self, d):
         self.distance = d
+
+    def set_mean_area(self, m):
+        self.mean_area = m
 
 
 class Midas:
@@ -214,10 +239,19 @@ class Midas:
                                                                         self.optimize, self.height, self.square)
         self.prediction = None
         self.faces = None
+        self.faces_position = None
         self.midas_area = None
+        self.mean_areas = None
 
         input_size = (self.net_w, self.net_h)
         print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
+
+    def reset(self):
+        self.prediction = None
+        self.faces = None
+        self.faces_position = None
+        self.midas_area = None
+        self.mean_areas = None
 
     def get_prediction(self, frame):
         if frame is not None:
@@ -240,9 +274,6 @@ class Midas:
                 .numpy()
             )
 
-            # Calculate inverse depth
-            # inverse_depth = 1.0 / prediction
-
             # Normalize the prediction
             self.prediction = self.normalize(prediction)
 
@@ -261,6 +292,9 @@ class Midas:
     def set_faces(self, faces):
         self.faces = faces
 
+    def set_faces_position(self, faces_position):
+        self.faces_position = faces_position
+
     def cut_midas_area(self):
         if self.faces is not None:
             midas_cut = []
@@ -271,9 +305,28 @@ class Midas:
 
             self.midas_area = midas_cut
 
+    def calculate_mean_area(self):
+        if self.faces is not None:
+            mean_areas = np.array([])
+            for idx, area in enumerate(self.midas_area):
+                # Calculate the mean depth value
+                mean_depth = 200 - np.mean(area)
+
+                # Append to mean_areas numpy array
+                mean_areas = np.append(mean_areas, mean_depth)
+
+            self.mean_areas = mean_areas
+
     def show_midas_area(self):
         for idx, area in enumerate(self.midas_area):
             cv2.imshow(f"midas area {idx + 1}", area)
+
+    def get_face_distance_approx(self):
+        data_dict = {"L": [], "R": []}
+        for position, distance in zip(self.faces_position, self.mean_areas):
+            data_dict[position].append(distance)
+
+        return data_dict
 
     def debug(self):
         print("\n\n")
@@ -304,6 +357,7 @@ def main():
 
     # Define SurroundAudio object
     speaker = SurroundAudio()
+    speaker.set_min_max(minimum=30, maximum=100)
     speaker.play_audio()
 
     # Define FaceDetector
@@ -314,6 +368,71 @@ def main():
     # Set the focal length value to object
     dist.focal_length = ref_dist.focal_length
 
+    fps = 1
+    # Start the camera
+    cap = cv2.VideoCapture(0)
+    time_start = time.time()
+
+    while True:
+        ret, frame = cap.read()
+
+        # Set frame of FaceDetector & Get information about the face
+        fd.set_frame(frame)
+        fd.get_face_information()
+
+        # Calculating distance with FaceDistanceEstimator
+        # Get distance of face
+        dist.get_distance()
+
+        # Create object of Image Controller
+        im_controller = ImageController(f=frame)
+        # Set the 'faces' inside the ImageController object
+        im_controller.set_faces(fd.faces)
+        # Set the 'distance' inside the ImageController object
+        im_controller.set_distance(dist.distances)
+        # Process & Show the frame
+        im_controller.annotate(t="normal")
+        im_controller.show(title="Normal Focal Length Estimation - press 'Q' to quit")
+
+        # Get the distance value in form of dictionary
+        distance_dict = dist.get_face_distance_approx()
+
+        # Compute the distance with 8D audio
+        speaker.compute(distance_dict)
+
+        # FPS measurement
+        alpha = 0.1
+        if time.time() - time_start > 0:
+            fps = (1 - alpha) * fps + alpha * 1 / (time.time() - time_start)  # exponential moving average
+            time_start = time.time()
+        print(f"\rFPS: {round(fps, 2)}", end="")
+
+        # Reset the FaceDetector attributes
+        fd.reset()
+        # Reset the FaceDistanceEstimator attributes
+        dist.reset()
+
+        # quit the program if you press 'q' on keyboard
+        if cv2.waitKey(1) == ord("q"):
+            speaker.stop_audio()
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+def midas():
+    # initialize pygame
+    pygame.init()
+    pygame.mixer.init()
+
+    # Define SurroundAudio object
+    speaker = SurroundAudio()
+    speaker.set_min_max(minimum=100, maximum=200)
+    speaker.play_audio()
+
+    # Define FaceDetector
+    fd = FaceDetector()
     # Define the Midas
     mi = Midas()
 
@@ -336,28 +455,25 @@ def main():
             # Midas' calculation
             # Setting faces coordinate
             mi.set_faces(fd.faces)
+            mi.set_faces_position(fd.faces_position)
             mi.cut_midas_area()
-            mi.debug()
-
-            # Calculating distance with FaceDistanceEstimator
-            # Get distance of face
-            dist.get_distance()
+            mi.calculate_mean_area()
 
             # Create object of Image Controller
-            im_controller = ImageController(f=frame)
+            im_controller = ImageController(f=mi.prediction)
             # Set the 'faces' inside the ImageController object
             im_controller.set_faces(fd.faces)
-            # Set the 'distance' inside the ImageController object
-            im_controller.set_distance(dist.distances)
+            # Set the 'mean_area' inside the ImageController object
+            im_controller.set_mean_area(mi.mean_areas)
             # Process & Show the frame
-            im_controller.annotate()
-            im_controller.show()
+            im_controller.annotate(t="depthmap")
+            im_controller.show(title="Depth Map Estimation - press 'Q' to quit")
 
-            # Get the distance value in form of dictionary
-            distance_dict = dist.get_face_distance_approx()
+            # Get the distance value from depth map
+            distance_dict_depth = mi.get_face_distance_approx()
 
             # Compute the distance with 8D audio
-            speaker.compute(distance_dict)
+            speaker.compute(distance_dict_depth)
 
             # FPS measurement
             alpha = 0.1
@@ -366,13 +482,12 @@ def main():
                 time_start = time.time()
             print(f"\rFPS: {round(fps, 2)}", end="")
 
-            # Reset the FaceDetector attributes
-            fd.reset()
-            # Reset the FaceDistanceEstimator attributes
-            dist.reset()
+            # Reset the Midas attributes
+            mi.reset()
 
             # quit the program if you press 'q' on keyboard
             if cv2.waitKey(1) == ord("q"):
+                speaker.stop_audio()
                 break
 
         cap.release()
@@ -380,4 +495,34 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Create a banner
+    banner_text = pyfiglet.figlet_format("C-Eyes", font="slant")
+    print(banner_text)
+    print("Precision in Vision")
+    print("FOR Compfest")
+    print()
+
+    # Create a menu
+    print("Menu:")
+    print("1. Normal Focal Length Estimation")
+    print("2. Depth Map Estimation (proper lighting required, no object other than face in front of camera)")
+    print("3. Exit")
+
+    # Get user input for menu selection
+    while True:
+        print()
+        choice = input("Enter your choice (1/2/3): ")
+
+        if choice == "1":
+            print("You selected Normal Focal Length Estimation")
+            main()
+        elif choice == "2":
+            print("You selected Depth Map Estimation")
+            midas()
+        elif choice == "3":
+            print("Exiting...")
+            print("Thank You")
+            break
+        else:
+            print("Invalid choice. Please select 1, 2, or 3.")
+
