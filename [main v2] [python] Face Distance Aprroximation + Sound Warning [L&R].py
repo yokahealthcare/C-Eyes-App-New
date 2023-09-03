@@ -105,7 +105,7 @@ def main():
 	channel.set_volume(left_volume, right_volume)
 
 	# Load and play the audio file
-	sound = pygame.mixer.Sound('sound/alarm-fire.mp3')
+	sound = pygame.mixer.Sound('sound/object-ding.mp3')
 	channel.play(sound, -1)
 
 	# read the references image

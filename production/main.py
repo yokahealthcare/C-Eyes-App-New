@@ -135,7 +135,7 @@ class SurroundAudio:
         self.channel.set_volume(self.left_volume, self.right_volume)
 
         # Load the default audio file
-        self.audio = pygame.mixer.Sound("../sound/alarm-fire.mp3")
+        self.audio = pygame.mixer.Sound("../sound/object-ding.mp3")
 
     def play_audio(self):
         self.channel.play(self.audio, -1)

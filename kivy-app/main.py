@@ -37,7 +37,7 @@ class MainApp(MDApp):
 #         self.channel.set_volume(self.left_volume, self.right_volume)
 #
 #         # Load and play the audio file
-#         sound = pygame.mixer.Sound('../sound/alarm-fire.mp3')
+#         sound = pygame.mixer.Sound('../sound/object-ding.mp3')
 #         self.channel.play(sound, -1)
 #
 #
