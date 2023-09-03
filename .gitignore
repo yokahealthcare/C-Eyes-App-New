@@ -9,4 +9,3 @@ midas/weights
 yolov3.cfg
 yolov3.weights
 coco.names
-production/weights
