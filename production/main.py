@@ -223,7 +223,7 @@ class SurroundAudio:
         self.channel.set_volume(self.left_volume, self.right_volume)
 
         # Load the default audio file
-        self.audio = pygame.mixer.Sound("../sound/object-ding.mp3")
+        self.audio = pygame.mixer.Sound("sound/object-ding.mp3")
 
     def set_audio(self, audiofile):
         self.audio = pygame.mixer.Sound(audiofile)
@@ -507,7 +507,7 @@ class Midas:
 
 def main(yolo_type="yolov5s"):
     # Read the references image
-    ref_image = cv2.imread('../ref_image.jpg')
+    ref_image = cv2.imread('ref_image.jpg')
 
     # Process face detector on reference image
     ref_fd = FaceDetector()
@@ -520,12 +520,12 @@ def main(yolo_type="yolov5s"):
 
     # Define SurroundAudio object - face
     speaker_face = SurroundAudio()
-    speaker_face.set_audio("../sound/person-ding.mp3")
+    speaker_face.set_audio("sound/person-ding.mp3")
     speaker_face.set_min_max(minimum=30, maximum=100)
     speaker_face.play_audio()
     # Define SurroundAudio object - object
     speaker_object = SurroundAudio()
-    speaker_object.set_audio("../sound/object-ding.mp3")
+    speaker_object.set_audio("sound/object-ding.mp3")
     speaker_object.set_min_max(minimum=30, maximum=100)
     speaker_object.play_audio()
 
@@ -622,12 +622,12 @@ def main(yolo_type="yolov5s"):
 def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
     # Define SurroundAudio object - face
     speaker_face = SurroundAudio()
-    speaker_face.set_audio("../sound/person-ding.mp3")
+    speaker_face.set_audio("sound/person-ding.mp3")
     speaker_face.set_min_max(minimum=30, maximum=100)
     speaker_face.play_audio()
     # Define SurroundAudio object - object
     speaker_object = SurroundAudio()
-    speaker_object.set_audio("../sound/object-ding.mp3")
+    speaker_object.set_audio("sound/object-ding.mp3")
     speaker_object.set_min_max(minimum=30, maximum=100)
     speaker_object.play_audio()
 
