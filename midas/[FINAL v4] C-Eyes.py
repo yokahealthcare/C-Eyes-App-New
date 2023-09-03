@@ -148,9 +148,9 @@ class ObjectDetector:
         # parse results
         self.predictions = self.results.pred[0]
         # convert boxes from Tensor to List
-        self.boxes = self.predictions[:, :4].numpy()  # x1, y1, x2, y2
+        self.boxes = self.predictions[:, :4].cpu().numpy()  # x1, y1, x2, y2
         # Use NumPy to find indices where categories equal 0
-        zero_idx = np.where(self.predictions[:, 5] == 0.0)[0]
+        zero_idx = np.where(self.predictions[:, 5].cpu() == 0.0)[0]
 
         # Filter out the 'person' categories from self.categories and self.boxes
         self.categories = [int(i) for i in self.predictions[:, 5] if i != 0]
