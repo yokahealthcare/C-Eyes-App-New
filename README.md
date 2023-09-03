@@ -113,7 +113,7 @@ In this project we use the YOLOv5 pre-trained model
 - Xtra Large (excellent, GPU recommended): [yolov5x](https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5x.pt)
 
 ***automatic :** it will be downloaded in the program 
-
+**After downloading (if you decided to download manually) move the file to the "/" (same path as main.py) folder**
 
 ### MiDAS (mandatory manually)
 
@@ -141,6 +141,8 @@ To run this project run
 ```bash
   python main.py
 ```
+
+**REMEMBER**: if you done, Press 'q' to quit the video capture window, this will take you to the previous menu
 
 
 ## Screenshots
