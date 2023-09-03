@@ -125,7 +125,7 @@ class FaceDistanceEstimator:
 class ObjectDetector:
     def __init__(self):
         # Model
-        self.model = torch.hub.load("ultralytics/yolov5", "yolov5s")  # or yolov5n - yolov5x6, custom
+        self.model = None
         self.frame = None
         self.width = None
         self.results = None
@@ -377,21 +377,6 @@ class Midas:
         self.model, self.transform, self.net_w, self.net_h = load_model(self.device, self.model_path, self.model_type,
                                                                         self.optimize, self.height, self.square)
 
-        model_type = "DPT_Large"  # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
-        # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
-        # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
-
-        self.model = torch.hub.load("intel-isl/MiDaS", model_type)
-        self.model.to(self.device)
-        self.model.eval()
-
-        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-
-        if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
-            transform = midas_transforms.dpt_transform
-        else:
-            transform = midas_transforms.small_transform
-
         self.prediction = None
         self.faces = None
         self.faces_position = None
@@ -400,8 +385,8 @@ class Midas:
         self.midas_area = {"face": None, "object": None}
         self.mean_areas = None
 
-        #input_size = (self.net_w, self.net_h)
-        #print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
+        input_size = (self.net_w, self.net_h)
+        print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
 
     def reset(self):
         self.prediction = None
@@ -634,7 +619,7 @@ def main(yolo_type="yolov5s"):
     cv2.destroyAllWindows()
 
 
-def midas(model_type="midas_v21_small_256", yolo_type="yolov5s"):
+def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
     # Define SurroundAudio object - face
     speaker_face = SurroundAudio()
     speaker_face.set_audio("../sound/person-ding.mp3")
@@ -737,6 +722,10 @@ def midas(model_type="midas_v21_small_256", yolo_type="yolov5s"):
 
 
 if __name__ == "__main__":
+
+    available_model = ["5n", "5s", "5m", "5l", "5x"]
+    description = ["poor", "ok", "medium", "good", "excellent, GPU recommended"]
+
     # Create a banner
     banner_text = pyfiglet.figlet_format("C-Eyes", font="slant")
     print(banner_text)
@@ -755,18 +744,24 @@ if __name__ == "__main__":
 
         if choice == "1":
             print("You selected Normal Focal Length Estimation")
-            available_model = ["5n", "5s", "5m", "5l", "5x"]
-            description = ["poor", "ok", "medium", "good", "excellent, GPU recommended"]
-
-            # Print the list of files
+            # Print the list of available yolov5 pre-trained model
             print(f"Select {len(available_model)} YOLOv5 pre-trained model below:")
             for idx, file in enumerate(available_model):
                 print(f"{idx + 1}. yolov{file} ({description[idx]})")
 
             choice = int(input("Enter your choice: "))
-            main(f"yolov{available_model[choice - 1]}")
+            main(yolo_type=f"yolov{available_model[choice - 1]}")
         elif choice == "2":
+            # Select the pre-trained model for YOLOv5
             print("You selected Depth Map Estimation")
+            # Print the list of available yolov5 pre-trained model
+            print(f"Select {len(available_model)} YOLOv5 pre-trained model below:")
+            for idx, file in enumerate(available_model):
+                print(f"{idx + 1}. yolov{file} ({description[idx]})")
+
+            yolo_choice = int(input("Enter your choice: "))
+
+            # Select the pre-trained model for MiDAS
             folder_path = 'weights/'
             extension = '.pt'
             # List all files in the folder with the specified extension
@@ -776,8 +771,8 @@ if __name__ == "__main__":
             for idx, file in enumerate(files):
                 print(f"{idx + 1}. {file}")
 
-            choice = int(input("Enter your choice: "))
-            midas(files[choice - 1])
+            midas_choice = int(input("Enter your choice: "))
+            midas(yolo_type=f"yolov{available_model[yolo_choice - 1]}", model_type=files[midas_choice - 1])
         elif choice == "3":
             print("Exiting...")
             print("Thank You")
