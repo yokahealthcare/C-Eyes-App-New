@@ -1,9 +1,8 @@
-# [FINAL v3] C-Eyes.py
+# [FINAL v4] C-Eyes.py
 # Added Features:
-# 1. Midas Class
-# 2. Cropping Midas Area with the coordinate of mtcnn_cv2
+# 1. Added Object Detection YOLOv5
 # Problem:
-# 1. ...
+# 1. All Good
 
 import cv2
 import pygame
@@ -16,15 +15,27 @@ import numpy as np
 from midas.model_loader import load_model
 
 import pyfiglet
+import yaml
 
 # colors
 GREEN = (0, 255, 0)
 RED = (0, 0, 255)
+BLUE = (255, 0, 0)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 
 # defining the fonts
 fonts = cv2.FONT_HERSHEY_COMPLEX
+
+# initialize pygame
+pygame.init()
+pygame.mixer.init()
+
+
+def yaml_load(file='data.yaml'):
+    # Single-line safe yaml loading
+    with open(file, errors='ignore') as f:
+        return yaml.safe_load(f)
 
 
 class FaceDetector:
@@ -33,15 +44,15 @@ class FaceDetector:
         self.width = None
         self.face_detector = MTCNN()
         self.faces = None
-        self.faces_width = None
-        self.faces_position = None
+        self.widths = None
+        self.positions = None
 
     def reset(self):
         self.frame = None
         self.width = None
         self.faces = None
-        self.faces_width = None
-        self.faces_position = None
+        self.widths = None
+        self.positions = None
 
     def set_frame(self, f):
         self.frame = f
@@ -56,7 +67,7 @@ class FaceDetector:
         self.faces = [entry['box'] for entry in self.faces]
 
     def get_face_widths(self):
-        self.faces_width = [w for _, _, w, _ in self.faces]
+        self.widths = [w for _, _, w, _ in self.faces]
 
     def get_face_positions(self):
         positions = []
@@ -67,7 +78,7 @@ class FaceDetector:
             else:
                 positions.append("L")
 
-        self.faces_position = positions
+        self.positions = positions
 
     def get_face_information(self):
         self.detect_faces()
@@ -76,8 +87,8 @@ class FaceDetector:
 
     def debug(self):
         print(f"Faces                   : {self.faces}")
-        print(f"Faces Width             : {self.faces_width}")
-        print(f"Faces Position          : {self.faces_position}")
+        print(f"Faces Width             : {self.widths}")
+        print(f"Faces Position          : {self.positions}")
 
 
 class FaceDistanceEstimator:
@@ -95,17 +106,94 @@ class FaceDistanceEstimator:
 
     def get_focal_length(self):
         # finding the focal length
-        self.focal_length = (self.fd.faces_width[0] * self.real_distance) / self.real_width
+        self.focal_length = (self.fd.widths[0] * self.real_distance) / self.real_width
 
     def get_distance(self):
-        self.distances = [(self.real_width * self.focal_length) / w for w in self.fd.faces_width]
+        self.distances = [(self.real_width * self.focal_length) / w for w in self.fd.widths]
 
     def get_face_distance_approx(self):
         data_dict = {"L": [], "R": []}
-        for position, distance in zip(self.fd.faces_position, self.distances):
+        for position, distance in zip(self.fd.positions, self.distances):
             data_dict[position].append(distance)
 
         return data_dict
+
+    def debug(self):
+        print(f"Distance        : {self.distances}")
+
+
+class ObjectDetector:
+    def __init__(self):
+        # Model
+        self.model = torch.hub.load("ultralytics/yolov5", "yolov5s")  # or yolov5n - yolov5x6, custom
+        self.frame = None
+        self.width = None
+        self.results = None
+        self.predictions = None
+        self.boxes = None
+        self.scores = None
+        self.categories = None
+        self.widths = None
+        self.positions = None
+        self.distances = None
+
+    def get_object_information(self):
+        if self.frame is None:
+            print(f"You haven't set the frame")
+            return 0
+
+        # perform inference
+        self.results = self.model(self.frame)
+
+        # parse results
+        self.predictions = self.results.pred[0]
+        # convert boxes from Tensor to List
+        self.boxes = self.predictions[:, :4].cpu().numpy()  # x1, y1, x2, y2
+        # Use NumPy to find indices where categories equal 0
+        zero_idx = np.where(self.predictions[:, 5].cpu() == 0.0)[0]
+
+        # Filter out the 'person' categories from self.categories and self.boxes
+        self.categories = [int(i) for i in self.predictions[:, 5] if i != 0]
+        self.boxes = np.delete(self.boxes, zero_idx, axis=0)
+        # Extract other information
+        self.scores = self.predictions[:, 4]
+
+        # Calculate object_width using NumPy
+        self.widths = self.boxes[:, 2] - self.boxes[:, 0]
+
+        # Update the width of video capture
+        self.width = self.frame.shape[1]
+        # Getting objects position
+        self.get_object_positions()
+
+    def set_frame(self, f):
+        self.frame = f
+
+    def set_model(self, m):
+        self.model = torch.hub.load("ultralytics/yolov5", m)
+
+    def get_object_positions(self):
+        positions = []
+        for x, _, w, _ in self.boxes:
+            mx = x + int(w / 2)
+            if mx > (self.width / 2):
+                positions.append("R")
+            else:
+                positions.append("L")
+
+        self.positions = positions
+
+    def reset(self):
+        self.frame = None
+        self.width = None
+        self.results = None
+        self.predictions = None
+        self.boxes = None
+        self.scores = None
+        self.categories = None
+        self.widths = None
+        self.positions = None
+        self.distances = None
 
     def debug(self):
         print(f"Distance        : {self.distances}")
@@ -135,7 +223,10 @@ class SurroundAudio:
         self.channel.set_volume(self.left_volume, self.right_volume)
 
         # Load the default audio file
-        self.audio = pygame.mixer.Sound("../sound/object-ding.mp3")
+        self.audio = pygame.mixer.Sound("sound/object-ding.mp3")
+
+    def set_audio(self, audiofile):
+        self.audio = pygame.mixer.Sound(audiofile)
 
     def play_audio(self):
         self.channel.play(self.audio, -1)
@@ -188,6 +279,10 @@ class ImageController:
         self.faces = None
         self.distance = None
         self.mean_area = None
+        self.objects_box = None
+        self.objects_distance = None
+        self.objects_categories = None
+        self.yaml_objects = yaml_load("coco128.yaml")['names']
 
     def annotate(self, t):
         if t == "normal":
@@ -195,26 +290,58 @@ class ImageController:
                 print(f"You haven't set the 'faces' and 'distance'")
                 return 0
 
-            # Box
+            # Box Faces
             for idx, (x, y, w, h) in enumerate(self.faces):
                 # draw the rectangle on the face
-                cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
-                # Centimeter Text
-                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.distance[idx], 2)} CM", (30, 35 + idx * 20),
-                            fonts, 0.5, GREEN, 1)
+                cv2.rectangle(self.frame, (x, y), (x + w, y + h), RED, 2)
+                # draw the text on the face
+                text_size = max(int(0.03 * w), 1)  # Adjust the factor as needed
+                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.distance[idx], 2)} CM", (x + 10, y + 20),
+                            fonts, text_size / 10, RED, 1)
+
+            # Box Object
+            if self.objects_box is not None and self.objects_distance:
+                for idx, (x1, y1, x2, y2) in enumerate(self.objects_box):
+                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                    # draw the rectangle on the object
+                    cv2.rectangle(self.frame, (x1, y1), (x2, y2), GREEN, 2)
+                    # draw the text on the object
+                    w = x2 - x1
+                    text_size = max(int(0.03 * w), 1)  # Adjust the factor as needed
+                    cv2.putText(self.frame,
+                                f"{self.yaml_objects[self.objects_categories[idx]]} {idx + 1}: {round(self.objects_distance[idx], 2)} CM",
+                                (x1 + 10, y1 + 20),
+                                fonts, text_size / 10, GREEN, 1)
 
         elif t == "depthmap":
             if self.faces is None or self.mean_area is None:
                 print(f"You haven't set the 'faces' and 'mean_area'")
                 return 0
 
-            # Box
+            # Box Faces
             for idx, (x, y, w, h) in enumerate(self.faces):
                 # draw the rectangle on the face
-                cv2.rectangle(self.frame, (x, y), (x + w, y + h), GREEN, 2)
-                # Depth Map Text
-                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.mean_area[idx], 3)}", (x, y + h), fonts, 0.5,
-                            BLACK, 1)
+                cv2.rectangle(self.frame, (x, y), (x + w, y + h), RED, 2)
+                # draw the text on the face
+                text_size = max(int(0.03 * w), 1)  # Adjust the factor as needed
+                cv2.putText(self.frame, f"Person {idx + 1}: {round(self.mean_area[idx], 2)}", (x + 10, y + 20),
+                            fonts, text_size / 10, RED, 1)
+
+            # Box Object
+            if self.objects_box is not None and self.objects_distance:
+                for idx, (x1, y1, x2, y2) in enumerate(self.objects_box):
+                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                    # draw the rectangle on the object
+                    cv2.rectangle(self.frame, (x1, y1), (x2, y2), GREEN, 2)
+                    # draw the text on the object
+                    w = x2 - x1
+                    text_size = max(int(0.03 * w), 1)  # Adjust the factor as needed
+                    cv2.putText(self.frame,
+                                f"{self.yaml_objects[self.objects_categories[idx]]} {idx + 1}: {round(self.objects_distance[idx], 2)}",
+                                (x1 + 10, y1 + 20),
+                                fonts, text_size / 10, GREEN, 1)
+
+
 
     def show(self, title="Showing Image"):
         cv2.imshow(title, self.frame)
@@ -228,6 +355,15 @@ class ImageController:
     def set_mean_area(self, m):
         self.mean_area = m
 
+    def set_objects_box(self, o):
+        self.objects_box = o
+
+    def set_objects_distance(self, o):
+        self.objects_distance = o
+
+    def set_objects_categories(self, o):
+        self.objects_categories = o
+
 
 class Midas:
     def __init__(self, model_type="midas_v21_small_256"):
@@ -240,20 +376,40 @@ class Midas:
         self.grayscale = False
         self.model, self.transform, self.net_w, self.net_h = load_model(self.device, self.model_path, self.model_type,
                                                                         self.optimize, self.height, self.square)
+
+        model_type = "DPT_Large"  # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
+        # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
+        # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
+
+        self.model = torch.hub.load("intel-isl/MiDaS", model_type)
+        self.model.to(self.device)
+        self.model.eval()
+
+        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+
+        if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
+            transform = midas_transforms.dpt_transform
+        else:
+            transform = midas_transforms.small_transform
+
         self.prediction = None
         self.faces = None
         self.faces_position = None
-        self.midas_area = None
+        self.object_boxes = None
+        self.objects_position = None
+        self.midas_area = {"face": None, "object": None}
         self.mean_areas = None
 
-        input_size = (self.net_w, self.net_h)
-        print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
+        #input_size = (self.net_w, self.net_h)
+        #print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
 
     def reset(self):
         self.prediction = None
         self.faces = None
         self.faces_position = None
-        self.midas_area = None
+        self.object_boxes = None
+        self.objects_position = None
+        self.midas_area = {"face": None, "object": None}
         self.mean_areas = None
 
     def get_prediction(self, frame):
@@ -298,25 +454,44 @@ class Midas:
     def set_faces_position(self, faces_position):
         self.faces_position = faces_position
 
+    def set_objects_position(self, objects_position):
+        self.objects_position = objects_position
+
+    def set_objects_boxes(self, objects_boxes):
+        self.object_boxes = objects_boxes
+
     def cut_midas_area(self):
         if self.faces is not None:
             midas_cut = []
-            num_faces = 0
             for x, y, w, h in self.faces:
-                num_faces += 1
                 midas_cut.append(self.prediction[y:y + h, x:x + w])
 
-            self.midas_area = midas_cut
+            self.midas_area["face"] = midas_cut
+
+        if self.object_boxes is not None:
+            midas_cut = []
+            for x1, y1, x2, y2 in self.object_boxes:
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                midas_cut.append(self.prediction[y1:y2, x1:x2])
+
+            self.midas_area["object"] = midas_cut
 
     def calculate_mean_area(self):
-        if self.faces is not None:
-            mean_areas = np.array([])
-            for idx, area in enumerate(self.midas_area):
-                # Calculate the mean depth value
-                mean_depth = 200 - np.mean(area)
+        if self.midas_area is not None:
+            mean_areas = {}
 
-                # Append to mean_areas numpy array
-                mean_areas = np.append(mean_areas, mean_depth)
+            # Calculate mean depth value for "face"
+            if "face" in self.midas_area:
+                face_areas = self.midas_area["face"]
+                face_mean_depths = [200 - np.mean(area) for area in face_areas]
+
+                mean_areas["face"] = face_mean_depths
+
+            # Calculate mean depth value for "object"
+            if "object" in self.midas_area:
+                object_areas = self.midas_area["object"]
+                object_mean_depths = [200 - np.mean(area) for area in object_areas]
+                mean_areas["object"] = object_mean_depths
 
             self.mean_areas = mean_areas
 
@@ -324,10 +499,14 @@ class Midas:
         for idx, area in enumerate(self.midas_area):
             cv2.imshow(f"midas area {idx + 1}", area)
 
-    def get_face_distance_approx(self):
+    def get_face_distance_approx(self, t):
         data_dict = {"L": [], "R": []}
-        for position, distance in zip(self.faces_position, self.mean_areas):
-            data_dict[position].append(distance)
+        if t == "face":
+            for position, distance in zip(self.faces_position, self.mean_areas["face"]):
+                data_dict[position].append(distance)
+        else:
+            for position, distance in zip(self.faces_position, self.mean_areas["object"]):
+                data_dict[position].append(distance)
 
         return data_dict
 
@@ -341,7 +520,7 @@ class Midas:
         print(f"Faces : {self.faces}")
 
 
-def main():
+def main(yolo_type="yolov5s"):
     # Read the references image
     ref_image = cv2.imread('../ref_image.jpg')
 
@@ -354,14 +533,16 @@ def main():
     ref_dist = FaceDistanceEstimator(ref_fd)
     ref_dist.get_focal_length()
 
-    # initialize pygame
-    pygame.init()
-    pygame.mixer.init()
-
-    # Define SurroundAudio object
-    speaker = SurroundAudio()
-    speaker.set_min_max(minimum=30, maximum=100)
-    speaker.play_audio()
+    # Define SurroundAudio object - face
+    speaker_face = SurroundAudio()
+    speaker_face.set_audio("sound/person-ding.mp3")
+    speaker_face.set_min_max(minimum=30, maximum=100)
+    speaker_face.play_audio()
+    # Define SurroundAudio object - object
+    speaker_object = SurroundAudio()
+    speaker_object.set_audio("sound/object-ding.mp3")
+    speaker_object.set_min_max(minimum=30, maximum=100)
+    speaker_object.play_audio()
 
     # Define FaceDetector
     fd = FaceDetector()
@@ -370,6 +551,15 @@ def main():
     dist = FaceDistanceEstimator(fd)
     # Set the focal length value to object
     dist.focal_length = ref_dist.focal_length
+
+    # Define ObjectDetector
+    od = ObjectDetector()
+    od.set_model(yolo_type)
+
+    # Create object of FaceDistanceEstimator - Object
+    dist_object = FaceDistanceEstimator(od)
+    # Set the focal length value to object - Object
+    dist_object.focal_length = ref_dist.focal_length
 
     fps = 1
     # Start the camera
@@ -387,21 +577,36 @@ def main():
         # Get distance of face
         dist.get_distance()
 
+        # Detect objects
+        od.set_frame(frame)
+        od.get_object_information()
+        dist_object.get_distance()
+
         # Create object of Image Controller
         im_controller = ImageController(f=frame)
         # Set the 'faces' inside the ImageController object
         im_controller.set_faces(fd.faces)
         # Set the 'distance' inside the ImageController object
         im_controller.set_distance(dist.distances)
+        # Set the 'objects_box' inside the ImageController object
+        im_controller.set_objects_box(od.boxes)
+        # Set the 'objects_distance' inside the ImageController object
+        im_controller.set_objects_distance(dist_object.distances)
+        # Set the 'objects_categories' inside the ImageController object
+        im_controller.set_objects_categories(od.categories)
         # Process & Show the frame
         im_controller.annotate(t="normal")
         im_controller.show(title="Normal Focal Length Estimation - press 'Q' to quit")
 
         # Get the distance value in form of dictionary
-        distance_dict = dist.get_face_distance_approx()
+        distance_dict_faces = dist.get_face_distance_approx()
+
+        # Get the distance value in form of dictionary - Object
+        distance_dict_object = dist_object.get_face_distance_approx()
 
         # Compute the distance with 8D audio
-        speaker.compute(distance_dict)
+        speaker_face.compute(distance_dict_faces)
+        speaker_object.compute(distance_dict_object)
 
         # FPS measurement
         alpha = 0.1
@@ -414,30 +619,40 @@ def main():
         fd.reset()
         # Reset the FaceDistanceEstimator attributes
         dist.reset()
+        # Reset the ObjectDetector attributes
+        od.reset()
+        # Reset the FaceDistanceEstimator - Object attributes
+        dist_object.reset()
 
         # quit the program if you press 'q' on keyboard
         if cv2.waitKey(1) == ord("q"):
-            speaker.stop_audio()
+            speaker_face.stop_audio()
+            speaker_object.stop_audio()
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
 
-def midas(model_type="midas_v21_small_256"):
-    # initialize pygame
-    pygame.init()
-    pygame.mixer.init()
-
-    # Define SurroundAudio object
-    speaker = SurroundAudio()
-    speaker.set_min_max(minimum=0, maximum=100)
-    speaker.play_audio()
+def midas(model_type="midas_v21_small_256", yolo_type="yolov5s"):
+    # Define SurroundAudio object - face
+    speaker_face = SurroundAudio()
+    speaker_face.set_audio("sound/person-ding.mp3")
+    speaker_face.set_min_max(minimum=30, maximum=100)
+    speaker_face.play_audio()
+    # Define SurroundAudio object - object
+    speaker_object = SurroundAudio()
+    speaker_object.set_audio("sound/object-ding.mp3")
+    speaker_object.set_min_max(minimum=30, maximum=100)
+    speaker_object.play_audio()
 
     # Define FaceDetector
     fd = FaceDetector()
     # Define the Midas
     mi = Midas(model_type)
+    # Define ObjectDetector
+    od = ObjectDetector()
+    od.set_model(yolo_type)
 
     with torch.no_grad():
         fps = 1
@@ -455,10 +670,20 @@ def midas(model_type="midas_v21_small_256"):
             fd.set_frame(frame)
             fd.get_face_information()
 
-            # Midas' calculation
+            # Midas
             # Setting faces coordinate
             mi.set_faces(fd.faces)
-            mi.set_faces_position(fd.faces_position)
+            mi.set_faces_position(fd.positions)
+
+            # Detect objects
+            od.set_frame(frame)
+            od.get_object_information()
+            # Set the object boxes after 'od' get the information about the objects
+            mi.set_objects_boxes(od.boxes)
+            # Set the object position
+            mi.set_objects_position(od.positions)
+
+            # Cut the bounding boxes area and calculate the mean of it
             mi.cut_midas_area()
             mi.calculate_mean_area()
 
@@ -467,16 +692,25 @@ def midas(model_type="midas_v21_small_256"):
             # Set the 'faces' inside the ImageController object
             im_controller.set_faces(fd.faces)
             # Set the 'mean_area' inside the ImageController object
-            im_controller.set_mean_area(mi.mean_areas)
+            im_controller.set_mean_area(mi.mean_areas["face"])
+            # Set the 'objects_box' inside the ImageController object
+            im_controller.set_objects_box(od.boxes)
+            # Set the 'objects_distance' inside the ImageController object
+            im_controller.set_objects_distance(mi.mean_areas["object"])
+            # Set the 'objects_categories' inside the ImageController object
+            im_controller.set_objects_categories(od.categories)
             # Process & Show the frame
             im_controller.annotate(t="depthmap")
             im_controller.show(title="Depth Map Estimation - press 'Q' to quit")
 
             # Get the distance value from depth map
-            distance_dict_depth = mi.get_face_distance_approx()
+            distance_dict_depth_face = mi.get_face_distance_approx(t="face")
+            distance_dict_depth_object = mi.get_face_distance_approx(t="object")
 
-            # Compute the distance with 8D audio
-            speaker.compute(distance_dict_depth)
+            # Compute the distance with 8D audio - face
+            speaker_face.compute(distance_dict_depth_face)
+            # Compute the distance with 8D audio - object
+            speaker_object.compute(distance_dict_depth_object)
 
             # FPS measurement
             alpha = 0.1
@@ -487,10 +721,15 @@ def midas(model_type="midas_v21_small_256"):
 
             # Reset the Midas attributes
             mi.reset()
+            # Reset the FaceDetector attributes
+            fd.reset()
+            # Reset the ObjectDetector attributes
+            od.reset()
 
             # quit the program if you press 'q' on keyboard
             if cv2.waitKey(1) == ord("q"):
-                speaker.stop_audio()
+                speaker_face.stop_audio()
+                speaker_object.stop_audio()
                 break
 
         cap.release()
@@ -505,25 +744,31 @@ if __name__ == "__main__":
     print("FOR Compfest")
     print()
 
-    # Create a menu
-    print("Menu:")
-    print("1. Normal Focal Length Estimation")
-    print("2. Depth Map Estimation (proper lighting required, no object other than face in front of camera)")
-    print("3. Exit")
-
     # Get user input for menu selection
     while True:
-        print()
+        # Create a menu
+        print("\nMenu:")
+        print("1. Normal Focal Length Estimation")
+        print("2. Depth Map Estimation (proper lighting required, no object other than face in front of camera)")
+        print("3. Exit")
         choice = input("Enter your choice (1/2/3): ")
 
         if choice == "1":
             print("You selected Normal Focal Length Estimation")
-            main()
+            available_model = ["5n", "5s", "5m", "5l", "5x"]
+            description = ["poor", "ok", "medium", "good", "excellent, GPU recommended"]
+
+            # Print the list of files
+            print(f"Select {len(available_model)} YOLOv5 pre-trained model below:")
+            for idx, file in enumerate(available_model):
+                print(f"{idx + 1}. yolov{file} ({description[idx]})")
+
+            choice = int(input("Enter your choice: "))
+            main(f"yolov{available_model[choice - 1]}")
         elif choice == "2":
             print("You selected Depth Map Estimation")
-            # Replace 'your_folder_path' with the actual path to your folder
             folder_path = 'weights/'
-            extension = '.pt'  # Specify the file extension you want to filter
+            extension = '.pt'
             # List all files in the folder with the specified extension
             files = [file[:-3] for file in os.listdir(folder_path) if file.endswith(extension)]
             # Print the list of files

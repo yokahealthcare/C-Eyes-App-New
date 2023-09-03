@@ -376,6 +376,22 @@ class Midas:
         self.grayscale = False
         self.model, self.transform, self.net_w, self.net_h = load_model(self.device, self.model_path, self.model_type,
                                                                         self.optimize, self.height, self.square)
+
+        model_type = "DPT_Large"  # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
+        # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
+        # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
+
+        self.model = torch.hub.load("intel-isl/MiDaS", model_type)
+        self.model.to(self.device)
+        self.model.eval()
+
+        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+
+        if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
+            transform = midas_transforms.dpt_transform
+        else:
+            transform = midas_transforms.small_transform
+
         self.prediction = None
         self.faces = None
         self.faces_position = None
@@ -384,8 +400,8 @@ class Midas:
         self.midas_area = {"face": None, "object": None}
         self.mean_areas = None
 
-        input_size = (self.net_w, self.net_h)
-        print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
+        #input_size = (self.net_w, self.net_h)
+        #print(f"Input resized to {input_size[0]}x{input_size[1]} before entering the encoder")
 
     def reset(self):
         self.prediction = None

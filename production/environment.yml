@@ -1,4 +1,4 @@
-name: production
+name: ceyes
 channels:
   - defaults
 dependencies:
@@ -65,4 +65,3 @@ dependencies:
       - tzdata==2023.3
       - ultralytics==8.0.169
       - urllib3==2.0.4
-prefix: C:\Users\IoT-Lab\anaconda3\envs\production
