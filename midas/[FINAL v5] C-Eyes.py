@@ -1,7 +1,8 @@
 # [FINAL v5] C-Eyes.py
 # Added Features:
 # 1. Added Bluetooth Battery Notification
-# 2.
+# 2. Added video file input
+
 # Problem:
 # ...
 
@@ -575,12 +576,14 @@ class Midas:
         print(f"Faces : {self.faces}")
 
 
-def main(yolo_type="yolov5s"):
+def main(yolo_type="yolov5s", source=0):
     bt = Bluetooth()
     bt_conn = bt.get_connected_device()
     if not bt_conn:
-        return 0
-    bt.get_notification(limit=False)
+        print("You're not connected to any bluetooth device!")
+        print("Continue with speaker")
+    else:
+        bt.get_notification(limit=False)
 
     # Read the references image
     ref_image = cv2.imread('ref_image.jpg')
@@ -624,11 +627,14 @@ def main(yolo_type="yolov5s"):
 
     fps = 1
     # Start the camera
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(source)
     time_start = time.time()
 
     while True:
-        bt.get_notification(limit=True)
+        if bt_conn:
+            # check bluetooth battery every loop
+            bt.get_notification(limit=True)
+
         ret, frame = cap.read()
 
         # Set frame of FaceDetector & Get information about the face
@@ -696,12 +702,14 @@ def main(yolo_type="yolov5s"):
     cv2.destroyAllWindows()
 
 
-def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
+def midas(yolo_type="yolov5s", model_type="midas_v21_small_256", source=0):
     bt = Bluetooth()
     bt_conn = bt.get_connected_device()
     if not bt_conn:
-        return 0
-    bt.get_notification(limit=False)
+        print("You're not connected to any bluetooth device!")
+        print("Continue with speaker")
+    else:
+        bt.get_notification(limit=False)
 
     # Define SurroundAudio object - face
     speaker_face = SurroundAudio()
@@ -725,11 +733,14 @@ def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
     with torch.no_grad():
         fps = 1
         # Start the camera
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(source)
         time_start = time.time()
 
         while True:
-            bt.get_notification(limit=True)
+            if bt_conn:
+                # check bluetooth battery every loop
+                bt.get_notification(limit=True)
+
             ret, frame = cap.read()
 
             # Midas
@@ -827,13 +838,15 @@ if __name__ == "__main__":
 
         if choice == "1":
             print("You selected Normal Focal Length Estimation")
+
             # Print the list of available yolov5 pre-trained model
             print(f"Select {len(available_model)} YOLOv5 pre-trained model below:")
             for idx, file in enumerate(available_model):
                 print(f"{idx + 1}. yolov{file} ({description[idx]})")
 
-            choice = int(input("Enter your choice: "))
-            main(yolo_type=f"yolov{available_model[choice - 1]}")
+            yolo_choice = int(input("Enter your choice: "))
+
+            main(yolo_type=f"yolov{available_model[yolo_choice - 1]}")
         elif choice == "2":
             # Select the pre-trained model for YOLOv5
             print("You selected Depth Map Estimation")
