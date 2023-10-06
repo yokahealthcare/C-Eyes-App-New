@@ -26,8 +26,9 @@ Popuri Teams
 - Internet access is mandatory
 - The program display is slightly different (updated & optimized) from screenshot below
 - **Run in GPU is priotized**, if you have GPU attached to your computer, the program will use that
-- **The files attached for setup anaconda environment are for Windows only**
-## Installation
+- **The files attached for setup anaconda environment are for Windows (without bluetooth battery notification) (in "/production-windows") OR Linux (in "/production-linux")**
+
+## Installation - WINDOWS (without bluetooth battery notification)
 We are using anaconda environment for this project, you can download in [here](https://www.anaconda.com/download)
 
 ### 1. Creating Environment
@@ -98,8 +99,65 @@ Download & Install the latest pytorch version with GPU support
 ```bash
   pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
+Wait until the process is completed
+
+## Installation - LINUX (support bluetooth battery notification)
+We are using anaconda environment for this project, you can download in [here](https://www.anaconda.com/download)
+
+### 1. Creating Environment
+
+- Open Anaconda Prompt 
+
+- Locate to the "C-Eyes" Project Directory
+```bash
+  cd <path to C-Eyes directory>
+```
+    
+- Create an environment
+
+```bash
+  conda create -n ceyes
+```
 
 Wait until the process is completed
+
+
+### 2. Running Environment
+
+Activate newly created environment
+
+```bash
+  conda activate ceyes
+```
+
+### 3. Install All The Required Packages
+
+copy paste everything below, **make sure you are in the "ceyes" environment**
+
+```
+sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-4.0
+
+pip3 install pycairo
+
+pip3 install PyGObject
+
+pip install git+https://github.com/pybluez/pybluez.git#egg=pybluez
+
+pip install opencv-python mtcnn-opencv timm numpy pandas pygame pyfiglet bluetooth_battery pydbus gtts
+```
+
+### 4. Installing PyTorch 
+
+**IMPORTANT** : Make sure there is no installed pytorch on the environment 
+```bash
+  pip3 uninstall torch torchvision torchaudio
+```
+
+Download & Install the latest pytorch version with GPU support
+```bash
+  pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
 ## Download Assets
 
 ### YOLOv5 (automatic)
@@ -149,9 +207,9 @@ To run this project run
 
 Focal Length Distance Estimation
 
-![Focal Length Distance Estimation](https://raw.githubusercontent.com/yokahealthcare/C-Eyes-App-New/master/production/result/focal%20length.PNG)
+![Focal Length Distance Estimation](https://raw.githubusercontent.com/yokahealthcare/C-Eyes-App-New/master/production-windows/result/focal%20length.PNG)
 
 Depth Map Distance Estimation
 
-![Depth Map Distance Estimation](https://raw.githubusercontent.com/yokahealthcare/C-Eyes-App-New/master/production/result/depth%20map.PNG)
+![Depth Map Distance Estimation](https://raw.githubusercontent.com/yokahealthcare/C-Eyes-App-New/master/production-windows/result/depth%20map.PNG)
 
