@@ -135,6 +135,8 @@ Activate newly created environment
 copy paste everything below, **make sure you are in the "ceyes" environment**
 
 ```
+sudo apt install libbluetooth-dev
+
 sudo apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-4.0
 
 pip3 install pycairo
