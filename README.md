@@ -116,7 +116,7 @@ We are using anaconda environment for this project, you can download in [here](h
 - Create an environment
 
 ```bash
-  conda create -n ceyes
+  conda create -n ceyes pip
 ```
 
 Wait until the process is completed
