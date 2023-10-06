@@ -1,8 +1,10 @@
-# [FINAL v4] C-Eyes.py
+# [FINAL v5] C-Eyes.py
 # Added Features:
-# 1. Added Object Detection YOLOv5
+# 1. Added Bluetooth Battery Notification
+# 2. Added video file input
+
 # Problem:
-# 1. All Good
+# ...
 
 import cv2
 import pygame
@@ -14,6 +16,10 @@ import os
 import numpy as np
 from midas.model_loader import load_model
 
+from bluetooth_battery import BatteryStateQuerier, BatteryQueryError, BluetoothError
+import pydbus
+from io import BytesIO
+from gtts import gTTS
 import pyfiglet
 import yaml
 
@@ -199,6 +205,73 @@ class ObjectDetector:
         print(f"Distance        : {self.distances}")
 
 
+class Bluetooth:
+    def __init__(self):
+        self.MAC = None
+        self.checkpoint = 0
+
+    def get_connected_device(self):
+        bus = pydbus.SystemBus()
+
+        adapter = bus.get('org.bluez', '/org/bluez/hci0')
+        mngr = bus.get('org.bluez', '/')
+
+        mngd_objs = mngr.GetManagedObjects()
+        for path in mngd_objs:
+            con_state = mngd_objs[path].get('org.bluez.Device1', {}).get('Connected', False)
+            if con_state:
+                addr = mngd_objs[path].get('org.bluez.Device1', {}).get('Address')
+                name = mngd_objs[path].get('org.bluez.Device1', {}).get('Name')
+                print(f'Device {name} [{addr}] is connected')
+
+                # Setting the MAC Address
+                self.MAC = addr
+                return True
+
+        return False
+
+    def get_battery(self):
+        if self.mac_ok():
+            query = int(BatteryStateQuerier(self.MAC))
+            return query
+        else:
+            print("MAC Address is empty, there is no connected device!")
+
+    def get_notification(self, limit=True):
+        battery_level = self.get_battery()
+        if (battery_level <= 30 and battery_level != self.checkpoint) or not limit:
+            Audio.speak(text=f"Battery Level at {battery_level}%")
+            self.checkpoint = battery_level
+
+    def mac_ok(self):
+        if self.MAC is None:
+            return False
+        else:
+            return True
+
+
+class Audio:
+    @staticmethod
+    def speak(text):
+        # Create a BytesIO object and save the GTTS audio to it
+        mp3_fp = BytesIO()
+        tts = gTTS(text, lang='en')
+        tts.write_to_fp(mp3_fp)
+
+        # Set the BytesIO object's position to the beginning (important)
+        mp3_fp.seek(0)
+
+        # Load the MP3 data from the BytesIO object
+        pygame.mixer.music.load(mp3_fp)
+
+        # Play the loaded audio
+        pygame.mixer.music.play()
+
+        # Wait for the audio to finish playing
+        while pygame.mixer.music.get_busy():
+            pygame.time.Clock().tick(10)
+
+
 class SurroundAudio:
     def __init__(self):
         # Set MIN and MAX to Normalize the distance range 0 to 1
@@ -340,8 +413,6 @@ class ImageController:
                                 f"{self.yaml_objects[self.objects_categories[idx]]} {idx + 1}: {round(self.objects_distance[idx], 2)}",
                                 (x1 + 10, y1 + 20),
                                 fonts, text_size / 10, GREEN, 1)
-
-
 
     def show(self, title="Showing Image"):
         cv2.imshow(title, self.frame)
@@ -505,7 +576,15 @@ class Midas:
         print(f"Faces : {self.faces}")
 
 
-def main(yolo_type="yolov5s"):
+def main(yolo_type="yolov5s", source=0):
+    bt = Bluetooth()
+    bt_conn = bt.get_connected_device()
+    if not bt_conn:
+        print("You're not connected to any bluetooth device!")
+        print("Continue with speaker")
+    else:
+        bt.get_notification(limit=False)
+
     # Read the references image
     ref_image = cv2.imread('ref_image.jpg')
 
@@ -548,10 +627,14 @@ def main(yolo_type="yolov5s"):
 
     fps = 1
     # Start the camera
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(source)
     time_start = time.time()
 
     while True:
+        if bt_conn:
+            # check bluetooth battery every loop
+            bt.get_notification(limit=True)
+
         ret, frame = cap.read()
 
         # Set frame of FaceDetector & Get information about the face
@@ -619,7 +702,15 @@ def main(yolo_type="yolov5s"):
     cv2.destroyAllWindows()
 
 
-def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
+def midas(yolo_type="yolov5s", model_type="midas_v21_small_256", source=0):
+    bt = Bluetooth()
+    bt_conn = bt.get_connected_device()
+    if not bt_conn:
+        print("You're not connected to any bluetooth device!")
+        print("Continue with speaker")
+    else:
+        bt.get_notification(limit=False)
+
     # Define SurroundAudio object - face
     speaker_face = SurroundAudio()
     speaker_face.set_audio("sound/person-ding.mp3")
@@ -642,10 +733,14 @@ def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
     with torch.no_grad():
         fps = 1
         # Start the camera
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(source)
         time_start = time.time()
 
         while True:
+            if bt_conn:
+                # check bluetooth battery every loop
+                bt.get_notification(limit=True)
+
             ret, frame = cap.read()
 
             # Midas
@@ -722,7 +817,6 @@ def midas(yolo_type="yolov5s", model_type="midas_v21_small_256"):
 
 
 if __name__ == "__main__":
-
     available_model = ["5n", "5s", "5m", "5l", "5x"]
     description = ["poor", "ok", "medium", "good", "excellent, GPU recommended"]
 
@@ -744,13 +838,15 @@ if __name__ == "__main__":
 
         if choice == "1":
             print("You selected Normal Focal Length Estimation")
+
             # Print the list of available yolov5 pre-trained model
             print(f"Select {len(available_model)} YOLOv5 pre-trained model below:")
             for idx, file in enumerate(available_model):
                 print(f"{idx + 1}. yolov{file} ({description[idx]})")
 
-            choice = int(input("Enter your choice: "))
-            main(yolo_type=f"yolov{available_model[choice - 1]}")
+            yolo_choice = int(input("Enter your choice: "))
+
+            main(yolo_type=f"yolov{available_model[yolo_choice - 1]}")
         elif choice == "2":
             # Select the pre-trained model for YOLOv5
             print("You selected Depth Map Estimation")
