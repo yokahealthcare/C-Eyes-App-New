@@ -74,7 +74,7 @@ Create an empty environment (without any python package)
   conda create -n ceyes
   conda activate ceyes
   conda install pip
-  pip install opencv-python mtcnn-opencv timm numpy pandas pygame pyfiglet yaml
+  pip install opencv-python mtcnn-opencv timm numpy pandas pygame pyfiglet
 ```
 
 
